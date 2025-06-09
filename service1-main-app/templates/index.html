@@ -12,10 +12,10 @@
 
     <script>
         document.getElementById('fetch-message').addEventListener('click', function() {
-            fetch('/message')
-                .then(response => response.text())
+            fetch('/get-message') // Changed from /message to /get-message
+                .then(response => response.json()) // Expecting JSON response from /get-message
                 .then(data => {
-                    document.getElementById('message').innerText = data;
+                    document.getElementById('message').innerText = data.message; // Access the message field from JSON
                 })
                 .catch(error => {
                     console.error('Error fetching message:', error);
