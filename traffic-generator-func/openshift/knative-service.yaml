@@ -1,0 +1,19 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: traffic-generator
+  namespace: default
+spec:
+  template:
+    metadata:
+      labels:
+        app: traffic-generator
+    spec:
+      containers:
+        - image: <your-traffic-generator-image>
+          env:
+            - name: TARGET_URL
+              value: "http://<service1-route-url>"
+  traffic:
+    - latestRevision: true
+      percent: 100

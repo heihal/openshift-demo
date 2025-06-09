@@ -1,0 +1,177 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: build-and-deploy-microservices
+spec:
+  params:
+    - name: git-url
+      type: string
+      description: The URL of the git repository
+    - name: git-revision
+      type: string
+      description: The git revision (branch, tag, or commit)
+      default: main
+    - name: image-registry
+      type: string
+      description: The image registry to push images to (e.g., image-registry.openshift-image-registry.svc:5000/your-project)
+  workspaces:
+    - name: shared-workspace
+      description: Workspace for sharing files between tasks
+
+  tasks:
+    - name: fetch-sources
+      taskRef:
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: $(params.git-revision)
+        - name: deleteExisting
+          value: "true"
+
+    - name: build-service1
+      taskRef:
+        name: buildah # Using buildah, common in OpenShift. Can be replaced with kaniko or docker build if preferred and available.
+      runAfter: [fetch-sources]
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+      params:
+        - name: IMAGE
+          value: "$(params.image-registry)/service1-main-app:$(params.git-revision)"
+        - name: DOCKERFILE
+          value: "./service1-main-app/Dockerfile"
+        - name: CONTEXT
+          value: "./service1-main-app"
+        - name: TLSVERIFY
+          value: "false" # Set to true if your registry uses a valid certificate
+
+    - name: deploy-service1
+      taskRef:
+        name: openshift-client # Assumes an openshift-client task is available (e.g., from OpenShift Pipelines Catalog)
+      runAfter: [build-service1]
+      workspaces:
+        - name: manifest-dir
+          workspace: shared-workspace
+      params:
+        - name: SCRIPT
+          value: |
+            oc apply -f service1-main-app/openshift/deployment.yaml
+            oc apply -f service1-main-app/openshift/service.yaml
+            oc apply -f service1-main-app/openshift/route.yaml
+            oc apply -f service1-main-app/openshift/hpa.yaml
+            # Update deployment with the new image
+            oc patch deployment service1-main-app -p '''{"spec":{"template":{"spec":{"containers":[{"name":"service1-main-app","image":"$(params.image-registry)/service1-main-app:$(params.git-revision)"}]}}}}'''
+
+    - name: build-service2
+      taskRef:
+        name: buildah
+      runAfter: [fetch-sources]
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+      params:
+        - name: IMAGE
+          value: "$(params.image-registry)/service2-message-app:$(params.git-revision)"
+        - name: DOCKERFILE
+          value: "./service2-message-app/Dockerfile"
+        - name: CONTEXT
+          value: "./service2-message-app"
+        - name: TLSVERIFY
+          value: "false"
+
+    - name: deploy-service2
+      taskRef:
+        name: openshift-client
+      runAfter: [build-service2]
+      workspaces:
+        - name: manifest-dir
+          workspace: shared-workspace
+      params:
+        - name: SCRIPT
+          value: |
+            oc apply -f service2-message-app/openshift/deployment.yaml
+            oc apply -f service2-message-app/openshift/service.yaml
+            oc apply -f service2-message-app/openshift/hpa.yaml
+            oc patch deployment service2-message-app -p '''{"spec":{"template":{"spec":{"containers":[{"name":"service2-message-app","image":"$(params.image-registry)/service2-message-app:$(params.git-revision)"}]}}}}'''
+
+    - name: build-traffic-generator
+      taskRef:
+        name: buildah # Assuming Dockerfile for traffic-generator, if not, S2I or other build method needed
+      runAfter: [fetch-sources]
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+      params:
+        - name: IMAGE # Define how the traffic generator is built, e.g. if it has a Dockerfile
+          value: "$(params.image-registry)/traffic-generator-func:$(params.git-revision)"
+        - name: DOCKERFILE # Assuming a Dockerfile exists or will be created for the function
+          value: "./traffic-generator-func/Dockerfile" # You'll need to create this Dockerfile
+        - name: CONTEXT
+          value: "./traffic-generator-func"
+        - name: TLSVERIFY
+          value: "false"
+
+    - name: deploy-traffic-generator
+      taskRef:
+        name: openshift-client
+      runAfter: [build-traffic-generator]
+      workspaces:
+        - name: manifest-dir
+          workspace: shared-workspace
+      params:
+        - name: SCRIPT # The Knative service file needs to be updated with the correct image
+          value: |
+            # Update the Knative service with the new image
+            # This assumes your knative-service.yaml is structured to easily update the image.
+            # You might need to use yq or sed if it's more complex.
+            # For simplicity, we'll assume direct replacement is possible or you handle it in the Knative manifest.
+            # A common pattern is to use a placeholder in knative-service.yaml and replace it.
+            # Example: sed -i "s|image: <your-traffic-generator-image>|image: $(params.image-registry)/traffic-generator-func:$(params.git-revision)|g" traffic-generator-func/openshift/knative-service.yaml
+            # Then apply:
+            oc apply -f traffic-generator-func/openshift/knative-service.yaml
+            echo "Note: Ensure your knative-service.yaml for traffic-generator is updated to use the image $(params.image-registry)/traffic-generator-func:$(params.git-revision)"
+
+# Note:
+# 1. This pipeline assumes you have Tekton Tasks like `git-clone`, `buildah` (or `kaniko`/`docker`), and `openshift-client` installed in your OpenShift cluster.
+#    These are commonly available from the OpenShift Pipelines operator or Tekton Hub.
+# 2. You need to replace `<your-project>` in `image-registry` parameter default or provide it when running the pipeline.
+#    The typical format is `image-registry.openshift-image-registry.svc:5000/<your-openshift-project-name>`.
+# 3. The `traffic-generator-func` build step assumes you will create a Dockerfile for it.
+#    If it's a simple Python function, the Dockerfile would be similar to the other services.
+# 4. The deployment steps use `oc patch` to update the image in the deployments. Ensure the container names match.
+# 5. For the Knative service, you'll need to ensure the image path in `traffic-generator-func/openshift/knative-service.yaml`
+#    is either parameterized or updated by the pipeline. The example shows a placeholder comment.
+#    A more robust way is to use `oc patch` for Knative services as well, or tools like `kustomize` or `helm`.
+#
+# To run this pipeline, you would typically create a PipelineRun resource:
+#
+# apiVersion: tekton.dev/v1beta1
+# kind: PipelineRun
+# metadata:
+#   name: build-and-deploy-microservices-run-1
+# spec:
+#   pipelineRef:
+#     name: build-and-deploy-microservices
+#   params:
+#     - name: git-url
+#       value: <your-repo-url> # e.g., https://github.com/youruser/openshift-microservices-demo.git
+#     - name: git-revision
+#       value: main # or your specific branch/tag
+#     - name: image-registry
+#       value: image-registry.openshift-image-registry.svc:5000/<your-openshift-project-name>
+#   workspaces:
+#     - name: shared-workspace
+#       volumeClaimTemplate:
+#         spec:
+#           accessModes:
+#             - ReadWriteOnce
+#           resources:
+#             requests:
+#               storage: 1Gi
+#
+# You would apply this PipelineRun YAML to your OpenShift cluster using `oc apply -f <pipelinerun-file.yaml>`.

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: service1-main-app
+  labels:
+    app: service1-main-app
+spec:
+  ports:
+    - port: 80
+      targetPort: 5000
+  selector:
+    app: service1-main-app
+  type: ClusterIP

@@ -1,0 +1,13 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: service1-main-app
+spec:
+  to:
+    kind: Service
+    name: service1-main-app
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+  wildcardPolicy: None

@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service1-main-app
+  labels:
+    app: service1-main-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service1-main-app
+  template:
+    metadata:
+      labels:
+        app: service1-main-app
+    spec:
+      containers:
+      - name: service1-main-app
+        image: <your-docker-image-repo>/service1-main-app:latest
+        ports:
+        - containerPort: 5000
+        env:
+        - name: SERVICE2_URL
+          value: "http://service2-message-app:5000/message"  # URL to access the second service
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 15
+          periodSeconds: 20
