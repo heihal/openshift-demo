@@ -1,0 +1,13 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: service2-message-app
+spec:
+  to:
+    kind: Service
+    name: service2-message-app
+  port:
+    targetPort: 5000 # Assuming service2-message-app listens on port 5000
+  tls:
+    termination: edge
+  wildcardPolicy: None
