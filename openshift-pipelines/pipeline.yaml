@@ -7,6 +7,7 @@ spec:
     - name: git-url
       type: string
       description: The URL of the git repository
+      value: https://github.com/heihal/openshift-demo.git
     - name: git-revision
       type: string
       description: The git revision (branch, tag, or commit)
@@ -14,6 +15,7 @@ spec:
     - name: image-registry
       type: string
       description: The image registry to push images to (e.g., image-registry.openshift-image-registry.svc:5000/your-project)
+      value: image-registry.openshift-image-registry.svc:5000/hemhal-demo
   workspaces:
     - name: shared-workspace
       description: Workspace for sharing files between tasks
