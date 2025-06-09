@@ -1,13 +1,14 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: service2-message-app
+  name: service1-main-app
   labels:
-    app: service2-message-app
+    app: service1-main-app
 spec:
   ports:
-    - port: 80
+    - name: http
+      port: 80
       targetPort: 5000
   selector:
-    app: service2-message-app
+    app: service1-main-app
   type: ClusterIP
