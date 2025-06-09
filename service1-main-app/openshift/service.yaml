@@ -6,7 +6,8 @@ metadata:
     app: service1-main-app
 spec:
   ports:
-    - port: 80
+    - name: http
+      port: 80
       targetPort: 5000
   selector:
     app: service1-main-app
