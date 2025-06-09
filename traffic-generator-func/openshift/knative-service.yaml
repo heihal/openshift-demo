@@ -2,7 +2,7 @@ apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
   name: traffic-generator
-  namespace: default
+  namespace: hemhal-dev
 spec:
   template:
     metadata:
@@ -10,7 +10,7 @@ spec:
         app: traffic-generator
     spec:
       containers:
-        - image: <your-traffic-generator-image>
+        - image: <IMAGE_NAME_HERE>
           env:
             - name: TARGET_URL
               value: "http://<service1-route-url>"
